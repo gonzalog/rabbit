@@ -23,6 +23,10 @@ int32_t g(u, v){
   return lsw(square(u+v)) ^ msw(square(u+v));
 }
 
+void next_state(int32_t* X, int32_t* C, struct bit* counter_carry){
+  // here completar con parte de generate_encrypt_block
+}
+
 char* generate_encrypt_block(struct bit* counter_carry, int32_t* C, int32_t* X){
   int16_t* S = malloc(sizeof(int16_t) * 8);
   int32_t* G = malloc(sizeof(int32_t) * 8);
@@ -69,22 +73,12 @@ char* generate_encrypt_block(struct bit* counter_carry, int32_t* C, int32_t* X){
     S[0] = msw(X[6]) ^ lsw(X[1]);
   }
 
-  for(j = 0; j < 8; j++)
-    C[j] = C[j] ^ X[(j+4) % 8];
 
   return (char*) S;
 }
 
-void encrypt_message(char* message, int16_t* K){
-  // Inner State
-  int32_t* X = malloc(sizeof(int32_t) * 8);
-  int32_t* C = malloc(sizeof(int32_t) * 8);
-  char* encrypt_block;
-  struct bit counter_carry;
-
-  // Key Setup Scheme
-  counter_carry.value = 0;
-  int j, i, m, block_iterator;
+void key_setup(int16_t* K, int32_t* X, int32_t* C){
+  int j;
   for(j = 0; j <= 6 ; j++){
     X[j] = (int32_t) K[(j+1) % 8] << 16 | K[j];
     C[j] = (int32_t) K[(j+4) % 8] << 16 | K[(j+5) % 8];
@@ -92,9 +86,39 @@ void encrypt_message(char* message, int16_t* K){
     j++;
     X[j] = (int32_t) K[(j+5) % 8] << 16 | K[(j+4) % 8];
     C[j] = (int32_t) K[j] << 16 | K[(j+1) % 8];
-  }
+  }  
+}
+
+void encrypt_message(char* message, int16_t* K){
+  // Inner State
+  int32_t* X = malloc(sizeof(int32_t) * 8);
+  int32_t* C = malloc(sizeof(int32_t) * 8);
+  struct bit counter_carry;
+
+  // Counter Carry Setup
+  counter_carry.value = 0;
+
+  //Key Setup
+  key_setup(K, X, C);
+
+  // 4 Next state iterations to remove linearity on key
+  int i;
+  for(i = 0; i < 4; i ++)
+    next_state(X, C, counter_carry);
+
+  // Reinit Counters
+  for(i = 0; i < 8; i++)
+    C[i] = C[i] ^ X[(i+4) % 8];
+
+  // Initial Value Setup
+
+  // 4 Next state iterations to remove linearity on iv
+  for(i = 0; i < 4; i ++)
+    next_state(X, C, counter_carry);
 
   // Iteration over message
+  int block_iterator, m;
+  char* encrypt_block;
   for(m = 0;; m++){
     if(message[m] == '\0'){
       encrypt_block = generate_encrypt_block(&counter_carry, C, X);
@@ -106,7 +130,7 @@ void encrypt_message(char* message, int16_t* K){
       return;
     } else if(((m+1) % 16) == 0){
       encrypt_block = generate_encrypt_block(&counter_carry, C, X);
-      
+
       for(block_iterator = 0; block_iterator < 16; block_iterator++){
         message[(m - 15) + block_iterator] = message[(m - 15) + block_iterator] ^ encrypt_block[block_iterator];
       }
