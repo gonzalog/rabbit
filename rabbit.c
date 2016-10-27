@@ -39,35 +39,33 @@ char* next_state(int32_t* X, int32_t* C, struct bit* counter_carry){
 
   int j, i, g_iterator;
 
-  for(j = 0; j < 4; j++){
-    // Counter Update
-    for(i = 0; i < 8; i++){
-      (*counter_carry).value = (C[i] + A[i] + (*counter_carry).value) / WORDSIZE;
-      C[i] = (C[i] + A[i] + (*counter_carry).value) % WORDSIZE;
-    }
-    // Next State Function
-    for(g_iterator = 0; g_iterator < 8; g_iterator++)
-      G[g_iterator] = g(X[g_iterator],C[g_iterator]);
-
-    X[0] = G[0] + (G[7] << 16) + (G[6] << 16) % WORDSIZE;
-    X[1] = G[1] + (G[0] <<  8) +  G[7] % WORDSIZE;
-    X[2] = G[2] + (G[1] << 16) + (G[0] << 16) % WORDSIZE;
-    X[3] = G[3] + (G[2] <<  8) +  G[1] % WORDSIZE;
-    X[4] = G[4] + (G[3] << 16) + (G[2] << 16) % WORDSIZE;
-    X[5] = G[5] + (G[4] <<  8) +  G[3] % WORDSIZE;
-    X[6] = G[6] + (G[5] << 16) + (G[4] << 16) % WORDSIZE;
-    X[7] = G[7] + (G[6] <<  8) +  G[5] % WORDSIZE;
-
-    // Output
-    S[7] = lsw(X[0]) ^ msw(X[5]);
-    S[6] = msw(X[0]) ^ lsw(X[3]);
-    S[5] = lsw(X[2]) ^ msw(X[7]);
-    S[4] = msw(X[2]) ^ lsw(X[5]);
-    S[3] = lsw(X[4]) ^ msw(X[1]);
-    S[2] = msw(X[4]) ^ lsw(X[7]);
-    S[1] = lsw(X[6]) ^ msw(X[3]);
-    S[0] = msw(X[6]) ^ lsw(X[1]);
+  // Counter Update
+  for(i = 0; i < 8; i++){
+    (*counter_carry).value = (C[i] + A[i] + (*counter_carry).value) / WORDSIZE;
+    C[i] = (C[i] + A[i] + (*counter_carry).value) % WORDSIZE;
   }
+  // Next State Function
+  for(g_iterator = 0; g_iterator < 8; g_iterator++)
+    G[g_iterator] = g(X[g_iterator],C[g_iterator]);
+
+  X[0] = G[0] + (G[7] << 16) + (G[6] << 16) % WORDSIZE;
+  X[1] = G[1] + (G[0] <<  8) +  G[7] % WORDSIZE;
+  X[2] = G[2] + (G[1] << 16) + (G[0] << 16) % WORDSIZE;
+  X[3] = G[3] + (G[2] <<  8) +  G[1] % WORDSIZE;
+  X[4] = G[4] + (G[3] << 16) + (G[2] << 16) % WORDSIZE;
+  X[5] = G[5] + (G[4] <<  8) +  G[3] % WORDSIZE;
+  X[6] = G[6] + (G[5] << 16) + (G[4] << 16) % WORDSIZE;
+  X[7] = G[7] + (G[6] <<  8) +  G[5] % WORDSIZE;
+
+  // Output
+  S[7] = lsw(X[0]) ^ msw(X[5]);
+  S[6] = msw(X[0]) ^ lsw(X[3]);
+  S[5] = lsw(X[2]) ^ msw(X[7]);
+  S[4] = msw(X[2]) ^ lsw(X[5]);
+  S[3] = lsw(X[4]) ^ msw(X[1]);
+  S[2] = msw(X[4]) ^ lsw(X[7]);
+  S[1] = lsw(X[6]) ^ msw(X[3]);
+  S[0] = msw(X[6]) ^ lsw(X[1]);
 
   return (char*) S;
 }
