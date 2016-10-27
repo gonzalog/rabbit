@@ -116,7 +116,14 @@ void rabbit(FILE* file, int16_t* K, FILE* output){
   int block_iterator;
   char* buffer = malloc(sizeof(char) * 16);
   
-  for(i = 0; !feof(file); i++){
+  //Avoid header
+  char* header = malloc(100);
+  fread(header, 100, 1, file);
+  fwrite(header, 100, 1, output);
+  free(header);
+
+  i = 0;
+  while(!feof(file)){
     fread(&buffer[i], 1, 1, file);
 
     if(i == 15){
@@ -126,9 +133,11 @@ void rabbit(FILE* file, int16_t* K, FILE* output){
         buffer[block_iterator] = buffer[block_iterator] ^ encrypt_block[block_iterator];
       }
 
-      fwrite(buffer, 1, 16, output);
+      fwrite(buffer, 16, 1, output);
       
       i = 0;
+    } else {
+      i++;
     }
   }
 
@@ -139,7 +148,7 @@ void rabbit(FILE* file, int16_t* K, FILE* output){
       buffer[i - 1] = buffer[i - 1] ^ encrypt_block[16 - i];
     }
     
-    fwrite(buffer, 1, i, output);
+    fwrite(buffer, i, 1, output);
     return;
   }
 }
