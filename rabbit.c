@@ -136,7 +136,7 @@ void rabbit(FILE* file, int16_t* K, FILE* output){
       fwrite(buffer, 16, 1, output);
       
       i = 0;
-    } else {
+    } else if(!feof(file)){
       i++;
     }
   }
@@ -144,8 +144,8 @@ void rabbit(FILE* file, int16_t* K, FILE* output){
   if(i > 0){
     encrypt_block = next_state(X, C, &counter_carry);
     
-    for(block_iterator = 15; block_iterator > (15 - i); block_iterator--){
-      buffer[i - 1] = buffer[i - 1] ^ encrypt_block[16 - i];
+    for(block_iterator = i - 1; block_iterator >= 0; block_iterator--){
+      buffer[block_iterator] = buffer[block_iterator] ^ encrypt_block[15 - block_iterator];
     }
     
     fwrite(buffer, i, 1, output);
