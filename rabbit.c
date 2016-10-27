@@ -37,16 +37,16 @@ char* next_state(int32_t* X, int32_t* C, struct bit* counter_carry){
   A[6] = 0x4D34D34D;
   A[7] = 0xD34D34D3;
 
-  int j, i, g_iterator;
 
   // Counter Update
+  int i;
   for(i = 0; i < 8; i++){
     (*counter_carry).value = (C[i] + A[i] + (*counter_carry).value) / WORDSIZE;
     C[i] = (C[i] + A[i] + (*counter_carry).value) % WORDSIZE;
   }
   // Next State Function
-  for(g_iterator = 0; g_iterator < 8; g_iterator++)
-    G[g_iterator] = g(X[g_iterator],C[g_iterator]);
+  for(i = 0; i < 8; i++)
+    G[i] = g(X[i],C[i]);
 
   X[0] = G[0] + (G[7] << 16) + (G[6] << 16) % WORDSIZE;
   X[1] = G[1] + (G[0] <<  8) +  G[7] % WORDSIZE;
@@ -104,6 +104,7 @@ void rabbit(FILE* file, int16_t* K, FILE* output){
     C[i] = C[i] ^ X[(i+4) % 8];
 
   // Initial Value Setup
+  
 
   // 4 Next state iterations to remove linearity on iv
   // for(i = 0; i < 4; i ++)
