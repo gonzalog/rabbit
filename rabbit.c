@@ -23,11 +23,7 @@ int32_t g(u, v){
   return lsw(square(u+v)) ^ msw(square(u+v));
 }
 
-void next_state(int32_t* X, int32_t* C, struct bit* counter_carry){
-  // here completar con parte de generate_encrypt_block
-}
-
-char* generate_encrypt_block(struct bit* counter_carry, int32_t* C, int32_t* X){
+char* next_state(int32_t* X, int32_t* C, struct bit* counter_carry){
   int16_t* S = malloc(sizeof(int16_t) * 8);
   int32_t* G = malloc(sizeof(int32_t) * 8);
   int32_t* A = malloc(sizeof(int32_t) * 8);
@@ -73,7 +69,6 @@ char* generate_encrypt_block(struct bit* counter_carry, int32_t* C, int32_t* X){
     S[0] = msw(X[6]) ^ lsw(X[1]);
   }
 
-
   return (char*) S;
 }
 
@@ -89,7 +84,7 @@ void key_setup(int16_t* K, int32_t* X, int32_t* C){
   }  
 }
 
-void encrypt_message(char* message, int16_t* K){
+void rabbit(FILE* file, int16_t* K, FILE* output){
   // Inner State
   int32_t* X = malloc(sizeof(int32_t) * 8);
   int32_t* C = malloc(sizeof(int32_t) * 8);
@@ -104,7 +99,7 @@ void encrypt_message(char* message, int16_t* K){
   // 4 Next state iterations to remove linearity on key
   int i;
   for(i = 0; i < 4; i ++)
-    next_state(X, C, counter_carry);
+    next_state(X, C, &counter_carry);
 
   // Reinit Counters
   for(i = 0; i < 8; i++)
@@ -113,42 +108,48 @@ void encrypt_message(char* message, int16_t* K){
   // Initial Value Setup
 
   // 4 Next state iterations to remove linearity on iv
-  for(i = 0; i < 4; i ++)
-    next_state(X, C, counter_carry);
+  // for(i = 0; i < 4; i ++)
+  //   next_state(X, C, &counter_carry);
 
-  // Iteration over message
-  int block_iterator, m;
+  // Iteration over file
   char* encrypt_block;
-  for(m = 0;; m++){
-    if(message[m] == '\0'){
-      encrypt_block = generate_encrypt_block(&counter_carry, C, X);
-      
-      for(block_iterator = 0; block_iterator < (m % 16); block_iterator++){
-        message[(m - 1) - block_iterator] = message[(m - 1) - block_iterator] ^ encrypt_block[15 - block_iterator];
-      }
+  int block_iterator;
+  char* buffer = malloc(sizeof(char) * 16);
+  
+  for(i = 0; !feof(file); i++){
+    fread(&buffer[i], 1, 1, file);
 
-      return;
-    } else if(((m+1) % 16) == 0){
-      encrypt_block = generate_encrypt_block(&counter_carry, C, X);
+    if(i == 15){
+      encrypt_block = next_state(X, C, &counter_carry);
 
       for(block_iterator = 0; block_iterator < 16; block_iterator++){
-        message[(m - 15) + block_iterator] = message[(m - 15) + block_iterator] ^ encrypt_block[block_iterator];
+        buffer[block_iterator] = buffer[block_iterator] ^ encrypt_block[block_iterator];
       }
+
+      fwrite(buffer, 1, 16, output);
+      
+      i = 0;
     }
+  }
+
+  if(i > 0){
+    encrypt_block = next_state(X, C, &counter_carry);
+    
+    for(block_iterator = 15; block_iterator > (15 - i); block_iterator--){
+      buffer[i - 1] = buffer[i - 1] ^ encrypt_block[16 - i];
+    }
+    
+    fwrite(buffer, 1, i, output);
+    return;
   }
 }
 
 // First param is a key of 16 chars and a message.
 int main(int argc, char** argv){
   int16_t* K = (int16_t*) argv[1];
-  char* message = argv[2];
+  FILE* file = fopen(argv[2], "rb");
+  FILE* output = fopen(argv[3], "wb");
 
-  printf("Message: %s\n", message);
-  printf("Key: %s\n", K);
-
-  encrypt_message(message, K);
-  printf("Encryption: %s\n", message);
-  encrypt_message(message, K);
-  printf("Decryption: %s\n", message);
+  rabbit(file, K, output);
   return 1;
 }
