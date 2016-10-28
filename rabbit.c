@@ -21,11 +21,11 @@ int64_t square(int64_t n){
 }
 
 int16_t lsw(int32_t n){
-  return n % 0x00010000;
+  return ((int16_t*) &n)[1];
 }
 
 int16_t msw(int32_t n){
-  return n / 0x00010000;
+  return ((int16_t*) &n)[0];
 }
 
 int32_t g(u, v){
