@@ -46,7 +46,6 @@ char* next_state(int32_t* X, int32_t* C, struct bit* counter_carry){
   A[6] = 0x4D34D34D;
   A[7] = 0xD34D34D3;
 
-
   // Counter Update
   int i;
   for(i = 0; i < 8; i++){
