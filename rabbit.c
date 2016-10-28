@@ -3,9 +3,18 @@
 #include <stdint.h>
 #define WORDSIZE 0x100000000
 
+int header_size;
+
 struct bit {
   unsigned int value : 1;
 };
+
+int32_t concat_words(int16_t wordA, int16_t wordB){
+  int16_t* result = malloc(sizeof(int16_t) * 2);
+  result[0] = wordA;
+  result[1] = wordB;
+  return *((int32_t*) result);
+}
 
 int64_t square(int64_t n){
   return (n % WORDSIZE) * (n % WORDSIZE);
@@ -44,7 +53,7 @@ char* next_state(int32_t* X, int32_t* C, struct bit* counter_carry){
     (*counter_carry).value = (C[i] + A[i] + (*counter_carry).value) / WORDSIZE;
     C[i] = (C[i] + A[i] + (*counter_carry).value) % WORDSIZE;
   }
-  // Next State Function
+
   for(i = 0; i < 8; i++)
     G[i] = g(X[i],C[i]);
 
@@ -73,59 +82,34 @@ char* next_state(int32_t* X, int32_t* C, struct bit* counter_carry){
 void key_setup(int16_t* K, int32_t* X, int32_t* C){
   int j;
   for(j = 0; j <= 6 ; j++){
-    X[j] = (int32_t) K[(j+1) % 8] << 16 | K[j];
-    C[j] = (int32_t) K[(j+4) % 8] << 16 | K[(j+5) % 8];
+    X[j] = concat_words(K[(j+1) % 8] << 16, K[j]);
+    C[j] = concat_words(K[(j+4) % 8] << 16, K[(j+5) % 8]);
     
     j++;
-    X[j] = (int32_t) K[(j+5) % 8] << 16 | K[(j+4) % 8];
-    C[j] = (int32_t) K[j] << 16 | K[(j+1) % 8];
+    X[j] = concat_words(K[(j+5) % 8] << 16, K[(j+4) % 8]);
+    C[j] = concat_words(K[j] << 16, K[(j+1) % 8]);
   }  
 }
 
-void rabbit(FILE* file, int16_t* K, FILE* output){
-  // Inner State
-  int32_t* X = malloc(sizeof(int32_t) * 8);
-  int32_t* C = malloc(sizeof(int32_t) * 8);
-  struct bit counter_carry;
+void copy_header(FILE* file, FILE* output){
+  char* header = malloc(header_size);
+  fread(header, header_size, 1, file);
+  fwrite(header, header_size, 1, output);
+  free(header);
+}
 
-  // Counter Carry Setup
-  counter_carry.value = 0;
-
-  //Key Setup
-  key_setup(K, X, C);
-
-  // 4 Next state iterations to remove linearity on key
-  int i;
-  for(i = 0; i < 4; i ++)
-    next_state(X, C, &counter_carry);
-
-  // Reinit Counters
-  for(i = 0; i < 8; i++)
-    C[i] = C[i] ^ X[(i+4) % 8];
-
-  // Initial Value Setup
-  
-
-  // 4 Next state iterations to remove linearity on iv
-  // for(i = 0; i < 4; i ++)
-  //   next_state(X, C, &counter_carry);
-
-  // Iteration over file
+void rabbit(int32_t* X, int32_t* C, struct bit counter_carry, FILE* file, FILE* output){
   char* encrypt_block;
-  int block_iterator;
+  int block_iterator, buffer_length;
   char* buffer = malloc(sizeof(char) * 16);
   
-  //Avoid header
-  char* header = malloc(100);
-  fread(header, 100, 1, file);
-  fwrite(header, 100, 1, output);
-  free(header);
+  copy_header(file, output);
 
-  i = 0;
+  buffer_length = 0;
   while(!feof(file)){
-    fread(&buffer[i], 1, 1, file);
+    fread(&buffer[buffer_length], 1, 1, file);
 
-    if(i == 15){
+    if(buffer_length == 15){
       encrypt_block = next_state(X, C, &counter_carry);
 
       for(block_iterator = 0; block_iterator < 16; block_iterator++){
@@ -134,22 +118,46 @@ void rabbit(FILE* file, int16_t* K, FILE* output){
 
       fwrite(buffer, 16, 1, output);
       
-      i = 0;
+      buffer_length = 0;
     } else if(!feof(file)){
-      i++;
+      buffer_length++;
     }
   }
 
-  if(i > 0){
+  if(buffer_length > 0){
     encrypt_block = next_state(X, C, &counter_carry);
     
-    for(block_iterator = i - 1; block_iterator >= 0; block_iterator--){
+    for(block_iterator = buffer_length - 1; block_iterator >= 0; block_iterator--){
       buffer[block_iterator] = buffer[block_iterator] ^ encrypt_block[15 - block_iterator];
     }
     
-    fwrite(buffer, i, 1, output);
+    fwrite(buffer, buffer_length, 1, output);
     return;
   }
+}
+
+void avoid_linearity(int32_t* X, int32_t* C, struct bit* counter_carry){
+  int i;
+  for(i = 0; i < 4; i++)
+    next_state(X, C, counter_carry);
+}
+
+void reinit_counters(int32_t* X, int32_t* C){
+  int i;
+  for(i = 0; i < 8; i++)
+    C[i] = C[i] ^ X[(i+4) % 8];
+}
+
+void initial_value_setup(int32_t* C, int16_t* initial_value){
+  // Initial Value Setup
+  C[0] = C[0] ^ concat_words(initial_value[2], initial_value[3]);
+  C[1] = C[1] ^ concat_words(initial_value[0], initial_value[2]);
+  C[2] = C[2] ^ concat_words(initial_value[0], initial_value[1]);
+  C[3] = C[3] ^ concat_words(initial_value[1], initial_value[3]);
+  C[4] = C[4] ^ concat_words(initial_value[2], initial_value[3]);
+  C[5] = C[5] ^ concat_words(initial_value[0], initial_value[2]);
+  C[6] = C[6] ^ concat_words(initial_value[0], initial_value[1]);
+  C[7] = C[7] ^ concat_words(initial_value[1], initial_value[3]);
 }
 
 // First param is a key of 16 chars and a message.
@@ -157,7 +165,24 @@ int main(int argc, char** argv){
   int16_t* K = (int16_t*) argv[1];
   FILE* file = fopen(argv[2], "rb");
   FILE* output = fopen(argv[3], "wb");
+  header_size = atoi(argv[4]);
 
-  rabbit(file, K, output);
+  // Inner State Declaration
+  int32_t* X = malloc(sizeof(int32_t) * 8);
+  int32_t* C = malloc(sizeof(int32_t) * 8);
+  struct bit counter_carry;
+  counter_carry.value = 0;
+
+  key_setup(K, X, C);
+  avoid_linearity(X, C, &counter_carry);
+
+  reinit_counters(X, C);
+
+  if(argc > 5){
+    initial_value_setup(C, (int16_t*) argv[5]);
+    avoid_linearity(X, C, &counter_carry);
+  }
+
+  rabbit(X, C, counter_carry, file, output);
   return 1;
 }
